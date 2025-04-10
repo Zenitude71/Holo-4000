@@ -9,6 +9,7 @@
 #define RADIUS      8.0    // Rayon de l’hélice (en "pixels image")
 #define LOOKUP_SCALE 0.000015625f  // 1/64000
 #define CENTER_INDEX (NUM_LEDS / 2)
+#define REFRESH_RADIUS 9;  // Degré de rotation par actualisation
 
 // Déclaration de la bande de LED
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -140,15 +141,15 @@ void fastSinCosLookup(int angleDegrees, float &outCos, float &outSin) {
   // float module = localAngle - deg1;
   int deg2 = 90 - deg1;  // Pour obtenir sin(localAngle) = cos(90-localAngle)
 
-  float vX = DEGREE_LOOKUP_TABLE[deg1];      // approximation de cos(localAngle)
-  float vZ = DEGREE_LOOKUP_TABLE[deg2];      // approximation de sin(localAngle)
+  //float vX = ;      // approximation de cos(localAngle)
+  //float vZ = ;      // approximation de sin(localAngle)
   // float mX = DEGREE_LOOKUP_TABLE[deg1 + 1];
   // float mZ = DEGREE_LOOKUP_TABLE[deg2 - 1];
 
   // float vectorX = vX + (mX - vX) * module;
   // float vectorZ = vZ + (mZ - vZ) * module;  
-  float vectorX = vX ;
-  float vectorZ = vZ ;
+  float vectorX = DEGREE_LOOKUP_TABLE[deg1] ;
+  float vectorZ = DEGREE_LOOKUP_TABLE[deg2] ;
 
 // Serial.println(String("Module: ") + module);
 // Serial.println(String("vectorX: ") + vectorX);
@@ -180,11 +181,11 @@ static inline void calcImageCoordinates(int i,  float cosTheta, float sinTheta, 
     // Calculer la distance normalisée (r)
     float r = (float)(i - CENTER_INDEX) / CENTER_INDEX * RADIUS;
     // Calculer les coordonnées cartésiennes
-    float x = r * cosTheta;
-    float y = r * sinTheta;
+    // float x = ;
+    // float y = ;
     // Calculer les coordonnées dans l'image, centrées en (8,8)
-    ix = round(x + 8);
-    iy = round(y + 8);
+    ix = round(r * cosTheta + 8);
+    iy = round(r * sinTheta + 8);
 }
 
 
@@ -274,7 +275,7 @@ void loop() {
   strip.show();
   
   // Mise à jour de l'angle de rotation
-  angle += 9;
+  angle += REFRESH_RADIUS;
   if (angle >= 360){
     angle -= 360;
 
@@ -288,8 +289,6 @@ void loop() {
     // }
     
   }
-  
-  
   
   // delay(DELAY_MS);
 }
