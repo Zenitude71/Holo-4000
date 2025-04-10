@@ -9,7 +9,8 @@
 #define RADIUS      8.0    // Rayon de l’hélice (en "pixels image")
 #define LOOKUP_SCALE 0.000015625f  // 1/64000
 #define CENTER_INDEX (NUM_LEDS / 2)
-#define REFRESH_RADIUS 9;  // Degré de rotation par actualisation
+#define REFRESH_RADIUS 9  // Degré de rotation par actualisation
+#define TOUR_RADIUS 360   // Degré  d'un tour
 
 // Déclaration de la bande de LED
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -155,7 +156,6 @@ void fastSinCosLookup(int angleDegrees, float &outCos, float &outSin) {
 // Serial.println(String("vectorX: ") + vectorX);
 // Serial.println(String("vX + (mX - vX): ") + test);
 
-
   // Ajustement en fonction du quadrant
   switch (quadrant) {
     case 0:
@@ -180,6 +180,7 @@ void fastSinCosLookup(int angleDegrees, float &outCos, float &outSin) {
 static inline void calcImageCoordinates(int i,  float cosTheta, float sinTheta, int &ix, int &iy) {
     // Calculer la distance normalisée (r)
     float r = (float)(i - CENTER_INDEX) / CENTER_INDEX * RADIUS;
+
     // Calculer les coordonnées cartésiennes
     // float x = ;
     // float y = ;
@@ -279,8 +280,8 @@ void loop() {
   
   // Mise à jour de l'angle de rotation
   angle += REFRESH_RADIUS;
-  if (angle >= 360){
-    angle -= 360;
+  if (angle >= TOUR_RADIUS){
+    angle -= TOUR_RADIUS;
 
     // count--;
     // if(count<=0){
