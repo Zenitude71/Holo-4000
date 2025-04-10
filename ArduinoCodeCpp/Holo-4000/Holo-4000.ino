@@ -9,6 +9,7 @@
 #define RADIUS      8.0    // Rayon de l’hélice (en "pixels image")
 #define LOOKUP_SCALE 0.000015625f  // 1/64000
 #define CENTER_INDEX (NUM_LEDS / 2)
+#define REFRESH_RADIUS 9;  // Degré de rotation par actualisation
 
 // Déclaration de la bande de LED
 Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -261,7 +262,7 @@ void loop() {
   strip.show();
   
   // Mise à jour de l'angle de rotation
-  angle += 9;
+  angle += REFRESH_RADIUS;
   if (angle >= 360){
     angle -= 360;
 
@@ -273,10 +274,7 @@ void loop() {
       durationFast /= 100;
       Serial.println(durationFast);  
     }
-    
   }
-  
-  
   
   // delay(DELAY_MS);
 }
