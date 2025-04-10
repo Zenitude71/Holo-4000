@@ -21,6 +21,8 @@ int count = 100;
 bool haveMakeALoop = false;
 unsigned long startFast = 0;
 unsigned long durationFast = 0;
+int coords[NUM_LEDS][2];
+float cosTheta, sinTheta;
 
 // Table de lookup pour 0° à 90° (91 valeurs)
 // Chaque valeur est pré-calculée et normalisée (1.0 = 64000)
@@ -218,18 +220,19 @@ void setup() {
 }
 
 void loop() {
-  if(!haveMakeALoop){
-    haveMakeALoop = true;
-    startFast = micros();
-  }
-  
+  // if(!haveMakeALoop){
+  //   haveMakeALoop = true;
+  //   startFast = micros();
+  // }
+  // int coords[NUM_LEDS][2];
+  startFast = micros();
   //strip.clear();
   // int centerIndex = NUM_LEDS / 2;
   // Utilisation de la fonction fastSinCosLookup pour obtenir sin et cos
-  float cosTheta, sinTheta;
+  // float cosTheta, sinTheta;
   fastSinCosLookup((float)angle, cosTheta, sinTheta);
-  int ix = 0;
-  int iy = 0;
+  // int ix = 0;
+  // int iy = 0;
   // Pour chaque LED de la bande, on calcule la position à afficher
   for (int i = 0; i < NUM_LEDS; i++) {
     // int offset = i - centerIndex;
@@ -245,38 +248,52 @@ void loop() {
     // // Calcul des coordonnées dans l'image (centrées en 8,8)
     // int ix = round(x + 8);
     // int iy = round(y + 8);
-    calcImageCoordinates(i, cosTheta, sinTheta, ix, iy);
+    calcImageCoordinates(i, cosTheta, sinTheta, coords[i][0], coords[i][1]);
 
-    
+
     // Sélection de la couleur selon l'image (si dans les limites), sinon éteint
-    if (ix >= 0 && ix < 16 && iy >= 0 && iy < 16) {
+    // if (ix >= 0 && ix < 16 && iy >= 0 && iy < 16) {
+    //   // uint8_t rcol = image[iy][ix][0];
+    //   // uint8_t gcol = image[iy][ix][1];
+    //   // uint8_t bcol = image[iy][ix][2];
+    //   // strip.setPixelColor(i, strip.Color(rcol, gcol, bcol));
+    //   // uint8_t rcol = image[iy][ix][0];
+    //   // uint8_t gcol = image[iy][ix][1];
+    //   // uint8_t bcol = image[iy][ix][2];
+    //   strip.setPixelColor(i, strip.Color(image[iy][ix][0], image[iy][ix][1], image[iy][ix][2]));
+    // } else {
+    //   strip.setPixelColor(i, strip.Color(0, 0, 0));
+    // }
+  }
+  durationFast = micros() - startFast;
+  Serial.println(durationFast);
+  startFast = micros();  
+  for(int i = 0; i<NUM_LEDS; i++){
+    // Correspond à : 
       // uint8_t rcol = image[iy][ix][0];
       // uint8_t gcol = image[iy][ix][1];
       // uint8_t bcol = image[iy][ix][2];
-      // strip.setPixelColor(i, strip.Color(rcol, gcol, bcol));
-      // uint8_t rcol = image[iy][ix][0];
-      // uint8_t gcol = image[iy][ix][1];
-      // uint8_t bcol = image[iy][ix][2];
-      strip.setPixelColor(i, strip.Color(image[iy][ix][0], image[iy][ix][1], image[iy][ix][2]));
-    } else {
-      strip.setPixelColor(i, strip.Color(0, 0, 0));
-    }
+      // strip.setPixelColor(i, strip.Color(image[iy][ix][0], image[iy][ix][1], image[iy][ix][2]));
+      strip.setPixelColor(i, strip.Color(image[coords[i][0]][coords[i][1]][0], image[coords[i][0]][coords[i][1]][1], image[coords[i][0]][coords[i][1]][2]));
   }
   strip.show();
+  durationFast = micros() - startFast;
+  Serial.println(durationFast);
   
   // Mise à jour de l'angle de rotation
   angle += REFRESH_RADIUS;
   if (angle >= TOUR_RADIUS){
     angle -= TOUR_RADIUS;
 
-    count--;
-    if(count<=0){
-      count = 100;
-      haveMakeALoop = false;
-      durationFast = micros() - startFast;
-      durationFast /= 100;
-      Serial.println(durationFast);  
-    }
+    // count--;
+    // if(count<=0){
+    //   count = 100;
+    //   haveMakeALoop = false;
+    //   durationFast = micros() - startFast;
+    //   durationFast /= 100;
+    //   Serial.println(durationFast);  
+    // }
+    
   }
   
   // delay(DELAY_MS);
