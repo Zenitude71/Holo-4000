@@ -138,15 +138,15 @@ void fastSinCosLookup(int angleDegrees, float &outCos, float &outSin) {
   // float module = localAngle - deg1;
   int deg2 = 90 - deg1;  // Pour obtenir sin(localAngle) = cos(90-localAngle)
 
-  float vX = DEGREE_LOOKUP_TABLE[deg1];      // approximation de cos(localAngle)
-  float vZ = DEGREE_LOOKUP_TABLE[deg2];      // approximation de sin(localAngle)
+  //float vX = ;      // approximation de cos(localAngle)
+  //float vZ = ;      // approximation de sin(localAngle)
   // float mX = DEGREE_LOOKUP_TABLE[deg1 + 1];
   // float mZ = DEGREE_LOOKUP_TABLE[deg2 - 1];
 
   // float vectorX = vX + (mX - vX) * module;
   // float vectorZ = vZ + (mZ - vZ) * module;  
-  float vectorX = vX ;
-  float vectorZ = vZ ;
+  float vectorX = DEGREE_LOOKUP_TABLE[deg1] ;
+  float vectorZ = DEGREE_LOOKUP_TABLE[deg2] ;
 
 // Serial.println(String("Module: ") + module);
 // Serial.println(String("vectorX: ") + vectorX);
