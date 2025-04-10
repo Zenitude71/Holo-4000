@@ -263,7 +263,8 @@ void loop() {
     // }
   }
   durationFast = micros() - startFast;
-  Serial.println(durationFast);  
+  Serial.println(durationFast);
+  startFast = micros();  
   for(int i = 0; i<NUM_LEDS; i++){
     // Correspond à : 
       // uint8_t rcol = image[iy][ix][0];
@@ -273,6 +274,8 @@ void loop() {
       strip.setPixelColor(i, strip.Color(image[coords[i][0]][coords[i][1]][0], image[coords[i][0]][coords[i][1]][1], image[coords[i][0]][coords[i][1]][2]));
   }
   strip.show();
+  durationFast = micros() - startFast;
+  Serial.println(durationFast);
   
   // Mise à jour de l'angle de rotation
   angle += REFRESH_RADIUS;
