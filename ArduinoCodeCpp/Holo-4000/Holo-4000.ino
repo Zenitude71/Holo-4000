@@ -178,11 +178,11 @@ static inline void calcImageCoordinates(int i,  float cosTheta, float sinTheta, 
     // Calculer la distance normalisée (r)
     float r = (float)(i - CENTER_INDEX) / CENTER_INDEX * RADIUS;
     // Calculer les coordonnées cartésiennes
-    float x = r * cosTheta;
-    float y = r * sinTheta;
+    // float x = ;
+    // float y = ;
     // Calculer les coordonnées dans l'image, centrées en (8,8)
-    ix = round(x + 8);
-    iy = round(y + 8);
+    ix = round(r * cosTheta + 8);
+    iy = round(r * sinTheta + 8);
 }
 
 
