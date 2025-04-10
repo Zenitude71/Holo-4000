@@ -187,6 +187,8 @@ static inline void calcImageCoordinates(int i,  float cosTheta, float sinTheta, 
     iy = round(r * sinTheta + 8);
 }
 
+// ᕦ(ò_óˇ)ᕤ
+
 
 
 // Table d'image 16x16 (couleurs RGB) utilisée pour mapper les LED
