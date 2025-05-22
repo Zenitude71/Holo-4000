@@ -1,193 +1,43 @@
 #include <Adafruit_NeoPixel.h>
 #include <Arduino.h>
-#include <math.h>
 
-#define LED_PIN     6      // Pin connectée au Data Out (DO)
-#define NUM_LEDS    72     // Nombre total de LED
-#define BRIGHTNESS  25     // Luminosité (0 à 255)
-#define DELAY_MS    0      // Délai entre chaque affichage (vitesse de rotation)
-#define RADIUS      8.0    // Rayon de l’hélice (en "pixels image")
-#define LOOKUP_SCALE 0.000015625f  // 1/64000
-#define CENTER_INDEX (NUM_LEDS / 2)
-#define REFRESH_RADIUS 9  // Degré de rotation par actualisation
-#define TOUR_RADIUS 360   // Degré  d'un tour
+// -----------------------------------------------------------------------------
+// Paramètres
+// -----------------------------------------------------------------------------
+#define LED_PIN        6        // Data pin pour NeoPixel
+#define NUM_LEDS       30
+#define BRIGHTNESS     255
+#define DELAY_MS       50
+#define RADIUS         8        // rayon en « pixels image »
+#define CENTER_INDEX   (NUM_LEDS/2)
+#define REFRESH_RADIUS 3        // pas angulaire en degrés
+#define TOUR_RADIUS    360
+#define NUM_STEPS      (TOUR_RADIUS/REFRESH_RADIUS)
 
-// Déclaration de la bande de LED
-Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+static const int16_t K_FP = (RADIUS * 256) / CENTER_INDEX; // Q8.8
 
-// Angle global de rotation (en degrés)
-int angle = 0;
-int count = 100;
-bool haveMakeALoop = false;
-unsigned long startFast = 0;
-unsigned long durationFast = 0;
-int coords[NUM_LEDS][2];
-float cosTheta, sinTheta;
+// -----------------------------------------------------------------------------
+// Tables pré-calculées
+// -----------------------------------------------------------------------------
 
-// Table de lookup pour 0° à 90° (91 valeurs)
-// Chaque valeur est pré-calculée et normalisée (1.0 = 64000)
-const float DEGREE_LOOKUP_TABLE[91] = {
-  64000 * LOOKUP_SCALE,
-  63990 * LOOKUP_SCALE,
-  63961 * LOOKUP_SCALE,
-  63912 * LOOKUP_SCALE,
-  63844 * LOOKUP_SCALE,
-  63756 * LOOKUP_SCALE,
-  63649 * LOOKUP_SCALE,
-  63523 * LOOKUP_SCALE,
-  63377 * LOOKUP_SCALE,
-  63212 * LOOKUP_SCALE,
-  63028 * LOOKUP_SCALE,
-  62824 * LOOKUP_SCALE,
-  62601 * LOOKUP_SCALE,
-  62360 * LOOKUP_SCALE,
-  62099 * LOOKUP_SCALE,
-  61819 * LOOKUP_SCALE,
-  61521 * LOOKUP_SCALE,
-  61204 * LOOKUP_SCALE,
-  60868 * LOOKUP_SCALE,
-  60513 * LOOKUP_SCALE,
-  60140 * LOOKUP_SCALE,
-  59749 * LOOKUP_SCALE,
-  59340 * LOOKUP_SCALE,
-  58912 * LOOKUP_SCALE,
-  58467 * LOOKUP_SCALE,
-  58004 * LOOKUP_SCALE,
-  57523 * LOOKUP_SCALE,
-  57024 * LOOKUP_SCALE,
-  56509 * LOOKUP_SCALE,
-  55976 * LOOKUP_SCALE,
-  55426 * LOOKUP_SCALE,
-  54859 * LOOKUP_SCALE,
-  54275 * LOOKUP_SCALE,
-  53675 * LOOKUP_SCALE,
-  53058 * LOOKUP_SCALE,
-  52426 * LOOKUP_SCALE,
-  51777 * LOOKUP_SCALE,
-  51113 * LOOKUP_SCALE,
-  50433 * LOOKUP_SCALE,
-  49737 * LOOKUP_SCALE,
-  49027 * LOOKUP_SCALE,
-  48301 * LOOKUP_SCALE,
-  47561 * LOOKUP_SCALE,
-  46807 * LOOKUP_SCALE,
-  46038 * LOOKUP_SCALE,
-  45255 * LOOKUP_SCALE,
-  44458 * LOOKUP_SCALE,
-  43648 * LOOKUP_SCALE,
-  42824 * LOOKUP_SCALE,
-  41988 * LOOKUP_SCALE,
-  41138 * LOOKUP_SCALE,
-  40277 * LOOKUP_SCALE,
-  39402 * LOOKUP_SCALE,
-  38516 * LOOKUP_SCALE,
-  37618 * LOOKUP_SCALE,
-  36709 * LOOKUP_SCALE,
-  35788 * LOOKUP_SCALE,
-  34857 * LOOKUP_SCALE,
-  33915 * LOOKUP_SCALE,
-  32962 * LOOKUP_SCALE,
-  32000 * LOOKUP_SCALE,
-  31028 * LOOKUP_SCALE,
-  30046 * LOOKUP_SCALE,
-  29055 * LOOKUP_SCALE,
-  28056 * LOOKUP_SCALE,
-  27048 * LOOKUP_SCALE,
-  26031 * LOOKUP_SCALE,
-  25007 * LOOKUP_SCALE,
-  23975 * LOOKUP_SCALE,
-  22936 * LOOKUP_SCALE,
-  21889 * LOOKUP_SCALE,
-  20836 * LOOKUP_SCALE,
-  19777 * LOOKUP_SCALE,
-  18712 * LOOKUP_SCALE,
-  17641 * LOOKUP_SCALE,
-  16564 * LOOKUP_SCALE,
-  15483 * LOOKUP_SCALE,
-  14397 * LOOKUP_SCALE,
-  13306 * LOOKUP_SCALE,
-  12212 * LOOKUP_SCALE,
-  11113 * LOOKUP_SCALE,
-  10012 * LOOKUP_SCALE,
-  8907 * LOOKUP_SCALE,
-  7800 * LOOKUP_SCALE,
-  6690 * LOOKUP_SCALE,
-  5578 * LOOKUP_SCALE,
-  4464 * LOOKUP_SCALE,
-  3350 * LOOKUP_SCALE,
-  2234 * LOOKUP_SCALE,
-  1117 * LOOKUP_SCALE,
-  0 * LOOKUP_SCALE
+// 1) r_table[i] = ((i−CENTER_INDEX)/CENTER_INDEX)*RADIUS * 256  (Q8.8)
+static int16_t r_table[NUM_LEDS];
+
+// 2) cos/sin lookup pour 0…90° en Q1.7
+// cos(θ) en Q1.7 pour θ = 0…90°
+// c[i] = round( cos(i * PI/180) * 127 )
+static const int8_t DEGREE_FP[91] = {
+  127,127,127,127,127,127,126,126,126,125,  // 0..9
+  125,125,124,124,123,123,122,121,121,120,  // 10..19
+  119,119,118,117,116,115,114,113,112,111,  // 20..29
+  110,109,108,107,106,104,103,102,100, 99,  // 30..39
+   97, 96, 94, 93, 91, 90, 88, 87, 85, 83,  // 40..49
+   82, 79, 78, 76, 75, 73, 71, 69, 67, 65,  // 50..59
+   64, 62, 60, 57, 56, 54, 52, 50, 48, 46,  // 60..69
+   44, 42, 39, 37, 35, 33, 31, 29, 26, 24,  // 70..79
+   22, 20, 18, 15, 13, 11,  9,  7,  4,  2,  // 80..89
+    0                                     // 90
 };
-
-// Fonction fastSinCosLookup
-// Calcule sin et cos pour un angle en degrés (0° à 359°) en utilisant la table de lookup
-// et une interpolation linéaire, puis ajuste le résultat en fonction du quadrant.
-// Les résultats (cos et sin) sont renvoyés via les références outCos et outSin.
-void fastSinCosLookup(int angleDegrees, float &outCos, float &outSin) {
-  // Normalisation de l'angle dans [0, 360)
-  // int angleInt = (int)angleDegrees;
-  // int normalized = angleInt % 360;
-  // if (normalized < 0)
-  //   normalized += 360;
-
-  // Calcul du quadrant (0 à 3) et de l'angle local dans [0, 90)
-  int quadrant = angleDegrees / 90;
-  int localAngle = (angleDegrees % 90);
-  // if (localAngle >= 90.0f)
-  //   localAngle = 89.9999f;
-
-  // Interpolation linéaire dans la table
-  int deg1 = (int)localAngle;
-  // float module = localAngle - deg1;
-  int deg2 = 90 - deg1;  // Pour obtenir sin(localAngle) = cos(90-localAngle)
-
-  //float vX = ;      // approximation de cos(localAngle)
-  //float vZ = ;      // approximation de sin(localAngle)
-  // float mX = DEGREE_LOOKUP_TABLE[deg1 + 1];
-  // float mZ = DEGREE_LOOKUP_TABLE[deg2 - 1];
-
-  // float vectorX = vX + (mX - vX) * module;
-  // float vectorZ = vZ + (mZ - vZ) * module;  
-  float vectorX = DEGREE_LOOKUP_TABLE[deg1] ;
-  float vectorZ = DEGREE_LOOKUP_TABLE[deg2] ;
-
-// Serial.println(String("Module: ") + module);
-// Serial.println(String("vectorX: ") + vectorX);
-// Serial.println(String("vX + (mX - vX): ") + test);
-
-  // Ajustement en fonction du quadrant
-  switch (quadrant) {
-    case 0:
-      outCos = vectorX;
-      outSin = vectorZ;
-      break;
-    case 1:
-      outCos = -vectorZ;
-      outSin = vectorX;
-      break;
-    case 2:
-      outCos = -vectorX;
-      outSin = -vectorZ;
-      break;
-    case 3:
-      outCos = vectorZ;
-      outSin = -vectorX;
-      break;
-  }
-}
-
-static inline void calcImageCoordinates(int i,  float cosTheta, float sinTheta, int &ix, int &iy) {
-    // Calculer la distance normalisée (r)
-    float r = (float)(i - CENTER_INDEX) / CENTER_INDEX * RADIUS;
-
-    // Calculer les coordonnées cartésiennes
-    // float x = ;
-    // float y = ;
-    // Calculer les coordonnées dans l'image, centrées en (8,8)
-    ix = round(r * cosTheta + 8);
-    iy = round(r * sinTheta + 8);
-}
 
 // ᕦ(ò_óˇ)ᕤ
 
@@ -211,90 +61,145 @@ const uint8_t image[16][16][3] = {
   { {0, 255, 0}, {76, 255, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {255, 0, 0}, {255, 0, 0} }
 };
 
+// -----------------------------------------------------------------------------
+// Variables
+// -----------------------------------------------------------------------------
+
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+static int coords[NUM_LEDS][2]; // coords temporaires
+static int8_t cos_fp, sin_fp;  // cos/sin en Q1.7
+
+// -----------------------------------------------------------------------------
+// calcImageCoordinates en fixed-point
+// -----------------------------------------------------------------------------
+static inline void calcImageCoordinates(int i, int &ix, int &iy) {
+  int16_t r_fp = r_table[i];                 // Q8.8
+  int32_t accx = (int32_t)r_fp * cos_fp;     // Q9.15
+  int32_t accy = (int32_t)r_fp * sin_fp;
+  int16_t x_fp = (int16_t)((accx + (1<<6)) >> 7); // → Q9.8
+  int16_t y_fp = (int16_t)((accy + (1<<6)) >> 7);
+  ix = x_fp + 8;  // centre image
+  iy = y_fp + 8;
+}
+
+// -----------------------------------------------------------------------------
+// fastSinCosLookup en Q1.7
+// -----------------------------------------------------------------------------
+static inline void fastSinCosLookup(int angleDeg, int8_t &outCos, int8_t &outSin) {
+  int q = angleDeg / 90;
+  int la = angleDeg % 90;
+  int8_t vx = DEGREE_FP[la];
+  int8_t vz = DEGREE_FP[90 - la];
+  switch (q) {
+    case 0: outCos = vx;  outSin = vz;  break;
+    case 1: outCos = -vz; outSin = vx;  break;
+    case 2: outCos = -vx; outSin = -vz; break;
+    default:outCos = vz;  outSin = -vx; break;
+  }
+}
+// Fonction de debug à ajouter au-dessus de setup()
+void debugTrig() {
+  Serial.println(F("Angle  |  cos_fp  |  cos_std   |  sin_fp  |  sin_std"));
+  for (int angle = 0; angle < 360; angle += REFRESH_RADIUS) {
+    int8_t c_fp, s_fp;
+    fastSinCosLookup(angle, c_fp, s_fp);
+
+    // Convertit Q1.7 → float
+    float cos_fix = (float)c_fp / 127.0f;
+    float sin_fix = (float)s_fp / 127.0f;
+
+    // Calcul « standard »
+    float rad = angle * (3.14159265f / 180.0f);
+    float cos_std = cosf(rad);
+    float sin_std = sinf(rad);
+
+    // Affichage formaté
+    Serial.print(angle);
+    Serial.print(F("°    | "));
+    Serial.print(cos_fix, 5);
+    Serial.print(F(" | "));
+    Serial.print(cos_std, 5);
+    Serial.print(F(" | "));
+    Serial.print(sin_fix, 5);
+    Serial.print(F(" | "));
+    Serial.println(sin_std, 5);
+  }
+}
+int compteur = 0;
+unsigned long t0, dt;
+// -----------------------------------------------------------------------------
+// setup()
+// -----------------------------------------------------------------------------
 void setup() {
   Serial.begin(9600);
-  while (!Serial) { ; }
+  while (!Serial) ;
+
+  // Pré-calcule r_table
+  for (int i = 0; i < NUM_LEDS; i++) {
+    int delta = i - CENTER_INDEX;
+    r_table[i] = (int16_t)((delta * K_FP) >> 8);
+  }
+
   strip.begin();
   strip.setBrightness(BRIGHTNESS);
   strip.show();
+  // debugTrig();
+  // delay(10000000);
+  t0 = micros();
 }
 
+// -----------------------------------------------------------------------------
+// loop()
+// -----------------------------------------------------------------------------
 void loop() {
-  // if(!haveMakeALoop){
-  //   haveMakeALoop = true;
-  //   startFast = micros();
-  // }
-  // int coords[NUM_LEDS][2];
-  startFast = micros();
-  //strip.clear();
-  // int centerIndex = NUM_LEDS / 2;
-  // Utilisation de la fonction fastSinCosLookup pour obtenir sin et cos
-  // float cosTheta, sinTheta;
-  fastSinCosLookup((float)angle, cosTheta, sinTheta);
-  // int ix = 0;
-  // int iy = 0;
-  // Pour chaque LED de la bande, on calcule la position à afficher
+  static int angle = 0;
+
+
+  // 1) sin/cos fixed-point
+  // t0 = micros();
+  fastSinCosLookup(angle, cos_fp, sin_fp);
+
+  // 2) calcul des coords
   for (int i = 0; i < NUM_LEDS; i++) {
-    // int offset = i - centerIndex;
-    // float ratio = (float)(i - centerIndex) / centerIndex;
-    // float ratio = (float)offset / centerIndex;  // Plage de -1 à 1
-    // float r = ratio * RADIUS;
-    // float r = (float)(i - centerIndex) / centerIndex * RADIUS;
-    
-    // // Calcul de la position cartésienne
-    // float x = r * cosTheta;
-    // float y = r * sinTheta;
-    
-    // // Calcul des coordonnées dans l'image (centrées en 8,8)
-    // int ix = round(x + 8);
-    // int iy = round(y + 8);
-    calcImageCoordinates(i, cosTheta, sinTheta, coords[i][0], coords[i][1]);
-
-
-    // Sélection de la couleur selon l'image (si dans les limites), sinon éteint
-    // if (ix >= 0 && ix < 16 && iy >= 0 && iy < 16) {
-    //   // uint8_t rcol = image[iy][ix][0];
-    //   // uint8_t gcol = image[iy][ix][1];
-    //   // uint8_t bcol = image[iy][ix][2];
-    //   // strip.setPixelColor(i, strip.Color(rcol, gcol, bcol));
-    //   // uint8_t rcol = image[iy][ix][0];
-    //   // uint8_t gcol = image[iy][ix][1];
-    //   // uint8_t bcol = image[iy][ix][2];
-    //   strip.setPixelColor(i, strip.Color(image[iy][ix][0], image[iy][ix][1], image[iy][ix][2]));
-    // } else {
-    //   strip.setPixelColor(i, strip.Color(0, 0, 0));
-    // }
+    calcImageCoordinates(i, coords[i][0], coords[i][1]);
   }
-  durationFast = micros() - startFast;
-  Serial.println(durationFast);
-  startFast = micros();  
-  for(int i = 0; i<NUM_LEDS; i++){
-    // Correspond à : 
-      // uint8_t rcol = image[iy][ix][0];
-      // uint8_t gcol = image[iy][ix][1];
-      // uint8_t bcol = image[iy][ix][2];
-      // strip.setPixelColor(i, strip.Color(image[iy][ix][0], image[iy][ix][1], image[iy][ix][2]));
-      strip.setPixelColor(i, strip.Color(image[coords[i][0]][coords[i][1]][0], image[coords[i][0]][coords[i][1]][1], image[coords[i][0]][coords[i][1]][2]));
+  // dt = micros() - t0;
+  // Serial.print("Calcul : ");
+  // Serial.print(dt);
+  // Serial.println(" µs");
+
+  // 3) affichage NeoPixel
+  // t0 = micros();
+  for (int i = 0; i < NUM_LEDS; i++) {
+    int x = constrain(coords[i][0], 0, 15);
+    int y = constrain(coords[i][1], 0, 15);
+    uint8_t r = image[y][x][0];
+    uint8_t g = image[y][x][1];
+    uint8_t b = image[y][x][2];
+    strip.setPixelColor(i, r, g, b);
   }
   strip.show();
-  durationFast = micros() - startFast;
-  Serial.println(durationFast);
-  
-  // Mise à jour de l'angle de rotation
-  angle += REFRESH_RADIUS;
-  if (angle >= TOUR_RADIUS){
-    angle -= TOUR_RADIUS;
+  // dt = micros() - t0;
+  // Serial.print("Affichage : ");
+  // Serial.print(dt);
+  // Serial.println(" µs");
 
-    // count--;
-    // if(count<=0){
-    //   count = 100;
-    //   haveMakeALoop = false;
-    //   durationFast = micros() - startFast;
-    //   durationFast /= 100;
-    //   Serial.println(durationFast);  
+  // 4) incrémente angle
+  angle += REFRESH_RADIUS;
+  if (angle >= TOUR_RADIUS) {
+    angle -= TOUR_RADIUS;
+    compteur++;
+    // Serial.println(compteur);
+    }
+    if(micros()-t0>10000000){
+      Serial.println(compteur*6);
+      compteur = 0;
+      t0=micros();
+    }
+    // else{
+    //   Serial.println("1 pas");
     // }
-    
-  }
-  
-  // delay(DELAY_MS);
+
+  //delay(DELAY_MS);
 }
